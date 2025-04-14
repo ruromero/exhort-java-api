@@ -45,7 +45,7 @@ class Javascript_Provider_Test extends ExhortTest {
   }
 
   static Stream<String> providers() {
-    return Stream.of(Ecosystem.Type.NPM.getType(), Ecosystem.Type.PNPM.getType());
+    return Stream.of(Ecosystem.Type.NPM.getType(), Ecosystem.Type.PNPM.getType(), Ecosystem.Type.YARN.getType());
   }
 
   static Stream<Arguments> testCases() {
@@ -227,6 +227,8 @@ class Javascript_Provider_Test extends ExhortTest {
         return "package-lock.json";
       case PNPM:
         return "pnpm-lock.yaml";
+      case YARN:
+        return "yarn.lock";
       default:
         fail("Unexpected pkg manager: " + pkgManager);
         return null;
