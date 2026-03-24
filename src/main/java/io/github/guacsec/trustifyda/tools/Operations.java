@@ -29,6 +29,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -192,8 +194,15 @@ public final class Operations {
     }
   }
 
+  private static final long DEFAULT_PROCESS_TIMEOUT_SECONDS = 120L;
+
   public static ProcessExecOutput runProcessGetFullOutput(
       Path dir, final String[] cmdList, String[] envList) {
+    return runProcessGetFullOutput(dir, cmdList, envList, DEFAULT_PROCESS_TIMEOUT_SECONDS);
+  }
+
+  public static ProcessExecOutput runProcessGetFullOutput(
+      Path dir, final String[] cmdList, String[] envList, long timeoutSeconds) {
     try {
       Process process;
       if (dir == null) {
@@ -210,31 +219,43 @@ public final class Operations {
         }
       }
 
-      BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-      StringBuilder output = new StringBuilder();
-      String line;
-      while ((line = reader.readLine()) != null) {
-        output.append(line);
-        if (!line.endsWith(System.lineSeparator())) {
-          output.append("\n");
-        }
+      CompletableFuture<String> stdoutFuture =
+          CompletableFuture.supplyAsync(() -> drainStream(process.getInputStream()));
+      CompletableFuture<String> stderrFuture =
+          CompletableFuture.supplyAsync(() -> drainStream(process.getErrorStream()));
+
+      boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+      if (!finished) {
+        process.destroyForcibly();
+        throw new RuntimeException(
+            String.format(
+                "Command '%s' timed out after %d seconds", join(" ", cmdList), timeoutSeconds));
       }
 
-      reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-      StringBuilder error = new StringBuilder();
-      while ((line = reader.readLine()) != null) {
-        error.append(line);
-        if (!line.endsWith(System.lineSeparator())) {
-          error.append("\n");
-        }
-      }
-
-      process.waitFor(30L, TimeUnit.SECONDS);
-
-      return new ProcessExecOutput(output.toString(), error.toString(), process.exitValue());
-    } catch (IOException | InterruptedException e) {
+      return new ProcessExecOutput(stdoutFuture.get(), stderrFuture.get(), process.exitValue());
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(
+          String.format("Command '%s' was interrupted", join(" ", cmdList)), e);
+    } catch (ExecutionException e) {
+      throw new RuntimeException(
+          String.format("Failed reading output of command '%s'", join(" ", cmdList)), e);
+    } catch (IOException e) {
       throw new RuntimeException(
           String.format("Failed to execute command '%s' ", join(" ", cmdList)), e);
+    }
+  }
+
+  private static String drainStream(java.io.InputStream inputStream) {
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+      StringBuilder sb = new StringBuilder();
+      String line;
+      while ((line = reader.readLine()) != null) {
+        sb.append(line).append("\n");
+      }
+      return sb.toString();
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to read process stream", e);
     }
   }
 
