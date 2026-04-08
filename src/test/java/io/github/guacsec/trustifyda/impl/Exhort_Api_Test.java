@@ -413,9 +413,11 @@ class Exhort_Api_Test extends ExhortTest {
   @Test
   @ClearSystemProperty(key = "TRUSTIFY_DA_BACKEND_URL")
   void check_TRUSTIFY_DA_Url_Throws_Exception_When_Not_Set() {
+    // Backend URL validation is lazy — construction succeeds, but accessing the endpoint throws
+    ExhortApi api = new ExhortApi();
     IllegalStateException exception =
         org.junit.jupiter.api.Assertions.assertThrows(
-            IllegalStateException.class, () -> new ExhortApi());
+            IllegalStateException.class, api::getEndpoint);
     then(exception.getMessage())
         .isEqualTo(
             "Backend URL not configured. Please set the TRUSTIFY_DA_BACKEND_URL environment"
@@ -823,5 +825,98 @@ class Exhort_Api_Test extends ExhortTest {
         proxySelector.isEmpty(),
         "When proxy url is malformed, createHttpClient() should not set a ProxySelector and should"
             + " fall back to direct connections");
+  }
+
+  @Test
+  void generateSbom_with_valid_pom_xml_should_return_cyclonedx_json() throws IOException {
+    var tmpFile = Files.createTempFile("TRUSTIFY_DA_test_pom_", ".xml");
+    try (var is =
+        getResourceAsStreamDecision(this.getClass(), "tst_manifests/maven/empty/pom.xml")) {
+      Files.write(tmpFile, is.readAllBytes());
+    }
+
+    var fakeSbomContent = "{\"bomFormat\":\"CycloneDX\",\"specVersion\":\"1.4\",\"components\":[]}";
+    given(mockProvider.provideStack())
+        .willReturn(
+            new Provider.Content(fakeSbomContent.getBytes(), "application/vnd.cyclonedx+json"));
+
+    try (var ecosystemTool = mockStatic(Ecosystem.class)) {
+      ecosystemTool.when(() -> Ecosystem.getProvider(tmpFile)).thenReturn(mockProvider);
+
+      var result = exhortApiSut.generateSbom(tmpFile.toString());
+
+      then(result).isEqualTo(fakeSbomContent);
+      then(result).contains("CycloneDX");
+    }
+
+    Files.deleteIfExists(tmpFile);
+  }
+
+  @Test
+  void generateSbom_with_unsupported_file_should_throw_exception() throws IOException {
+    var tmpFile = Files.createTempFile("TRUSTIFY_DA_test_", ".unsupported");
+    Files.writeString(tmpFile, "dummy content");
+
+    try (var ecosystemTool = mockStatic(Ecosystem.class)) {
+      ecosystemTool
+          .when(() -> Ecosystem.getProvider(tmpFile))
+          .thenThrow(new IllegalStateException("Unknown manifest file"));
+
+      org.junit.jupiter.api.Assertions.assertThrows(
+          IllegalStateException.class, () -> exhortApiSut.generateSbom(tmpFile.toString()));
+    }
+
+    Files.deleteIfExists(tmpFile);
+  }
+
+  @Test
+  void generateSbom_should_contain_metadata_component() throws IOException {
+    var tmpFile = Files.createTempFile("TRUSTIFY_DA_test_pom_", ".xml");
+    try (var is =
+        getResourceAsStreamDecision(this.getClass(), "tst_manifests/maven/empty/pom.xml")) {
+      Files.write(tmpFile, is.readAllBytes());
+    }
+
+    var fakeSbomContent =
+        "{\"bomFormat\":\"CycloneDX\",\"metadata\":{\"component\":{\"purl\":\"pkg:maven/com.example/test@1.0\"}},\"components\":[]}";
+    given(mockProvider.provideStack())
+        .willReturn(
+            new Provider.Content(fakeSbomContent.getBytes(), "application/vnd.cyclonedx+json"));
+
+    try (var ecosystemTool = mockStatic(Ecosystem.class)) {
+      ecosystemTool.when(() -> Ecosystem.getProvider(tmpFile)).thenReturn(mockProvider);
+
+      var result = exhortApiSut.generateSbom(tmpFile.toString());
+
+      then(result).contains("metadata");
+      then(result).contains("component");
+      then(result).contains("purl");
+    }
+
+    Files.deleteIfExists(tmpFile);
+  }
+
+  @Test
+  void generateSbom_should_not_make_http_calls() throws IOException {
+    var tmpFile = Files.createTempFile("TRUSTIFY_DA_test_pom_", ".xml");
+    try (var is =
+        getResourceAsStreamDecision(this.getClass(), "tst_manifests/maven/empty/pom.xml")) {
+      Files.write(tmpFile, is.readAllBytes());
+    }
+
+    var fakeSbomContent = "{\"bomFormat\":\"CycloneDX\",\"components\":[]}";
+    given(mockProvider.provideStack())
+        .willReturn(
+            new Provider.Content(fakeSbomContent.getBytes(), "application/vnd.cyclonedx+json"));
+
+    try (var ecosystemTool = mockStatic(Ecosystem.class)) {
+      ecosystemTool.when(() -> Ecosystem.getProvider(tmpFile)).thenReturn(mockProvider);
+
+      exhortApiSut.generateSbom(tmpFile.toString());
+
+      Mockito.verifyNoInteractions(mockHttpClient);
+    }
+
+    Files.deleteIfExists(tmpFile);
   }
 }

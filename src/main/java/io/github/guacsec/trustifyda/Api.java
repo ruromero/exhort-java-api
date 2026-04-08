@@ -124,4 +124,14 @@ public interface Api {
       throws IOException;
 
   CompletableFuture<byte[]> imageAnalysisHtml(Set<ImageRef> imageRefs) throws IOException;
+
+  /**
+   * Generate a CycloneDX SBOM from a manifest file locally without sending anything to the backend.
+   *
+   * @param manifestFile the path for the manifest file
+   * @return the CycloneDX JSON SBOM content as a String
+   * @throws IOException when failed to load the manifest file
+   * @throws IllegalStateException when the manifest file type is not supported
+   */
+  String generateSbom(String manifestFile) throws IOException;
 }
