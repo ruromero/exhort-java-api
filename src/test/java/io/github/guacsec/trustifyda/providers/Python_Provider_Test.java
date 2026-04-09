@@ -212,6 +212,44 @@ class Python_Provider_Test extends ExhortTest {
   }
 
   @Test
+  @RestoreSystemProperties
+  void test_marker_constrained_uninstalled_packages_are_skipped_in_component_analysis()
+      throws IOException {
+    var testFolder = "pip_requirements_txt_marker_skip";
+    var targetRequirements =
+        String.format("src/test/resources/tst_manifests/pip/%s/requirements.txt", testFolder);
+
+    // load expected SBOM
+    String expectedSbom;
+    try (var is =
+        getResourceAsStreamDecision(
+            this.getClass(),
+            String.format("tst_manifests/pip/%s/expected_component_sbom.json", testFolder))) {
+      expectedSbom = new String(is.readAllBytes());
+    }
+
+    // pip environment where only six and certifi are installed (pywin32 is Windows-only)
+    String pipFreezeContent = "six==1.16.0\ncertifi==2023.7.22\n";
+    String pipShowContent =
+        "Name: certifi\nVersion: 2023.7.22\nSummary: Python package for providing Mozilla's CA"
+            + " Bundle.\nRequires: \nRequired-by: \n---\nName: six\nVersion: 1.16.0\nSummary:"
+            + " Python 2 and 3 compatibility utilities\nRequires: \nRequired-by: ";
+    System.setProperty(
+        PROP_TRUSTIFY_DA_PIP_FREEZE,
+        new String(Base64.getEncoder().encode(pipFreezeContent.getBytes())));
+    System.setProperty(
+        PROP_TRUSTIFY_DA_PIP_SHOW,
+        new String(Base64.getEncoder().encode(pipShowContent.getBytes())));
+
+    // when providing component content for a manifest with a Windows-only marker package
+    var content = new PythonPipProvider(Path.of(targetRequirements)).provideComponent();
+
+    // then SBOM contains six and certifi but not pywin32
+    assertThat(content.type).isEqualTo(Api.CYCLONEDX_MEDIA_TYPE);
+    assertThat(dropIgnored(new String(content.buffer))).isEqualTo(dropIgnored(expectedSbom));
+  }
+
+  @Test
   void Test_The_ProvideComponent_Path_Should_Throw_Exception() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> new PythonPipProvider(Path.of(".")).provideComponent());

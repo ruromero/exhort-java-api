@@ -181,6 +181,9 @@ public abstract class PythonControllerBase {
         if (dep.contains("==")) {
           doubleEqualSignPosition = dep.indexOf("==");
           manifestVersion = dep.substring(doubleEqualSignPosition + 2).trim();
+          if (manifestVersion.contains(";")) {
+            manifestVersion = manifestVersion.substring(0, manifestVersion.indexOf(";")).trim();
+          }
           if (manifestVersion.contains("#")) {
             var hashCharIndex = manifestVersion.indexOf("#");
             manifestVersion = manifestVersion.substring(0, hashCharIndex);
@@ -210,6 +213,10 @@ public abstract class PythonControllerBase {
       }
       List<String> path = new ArrayList<>();
       String selectedDepName = getDependencyName(dep.toLowerCase());
+      boolean hasMarker = dep.contains(";");
+      if (hasMarker && cachedEnvironmentDeps.get(new StringInsensitive(selectedDepName)) == null) {
+        continue;
+      }
       path.add(selectedDepName);
       bringAllDependencies(
           dependencies, selectedDepName, cachedEnvironmentDeps, includeTransitive, path);
