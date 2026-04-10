@@ -173,22 +173,21 @@ public abstract class PythonControllerBase {
     boolean matchManifestVersions = Environment.getBoolean(PROP_MATCH_MANIFEST_VERSIONS, true);
 
     for (String dep : linesOfRequirements) {
+      boolean hasMarker = dep.contains(";");
+      String requirementSpec = hasMarker ? dep.substring(0, dep.indexOf(";")).trim() : dep;
       if (matchManifestVersions) {
         String dependencyName;
         String manifestVersion;
         String installedVersion = "";
         int doubleEqualSignPosition;
-        if (dep.contains("==")) {
-          doubleEqualSignPosition = dep.indexOf("==");
-          manifestVersion = dep.substring(doubleEqualSignPosition + 2).trim();
-          if (manifestVersion.contains(";")) {
-            manifestVersion = manifestVersion.substring(0, manifestVersion.indexOf(";")).trim();
-          }
+        if (requirementSpec.contains("==")) {
+          doubleEqualSignPosition = requirementSpec.indexOf("==");
+          manifestVersion = requirementSpec.substring(doubleEqualSignPosition + 2).trim();
           if (manifestVersion.contains("#")) {
             var hashCharIndex = manifestVersion.indexOf("#");
             manifestVersion = manifestVersion.substring(0, hashCharIndex);
           }
-          dependencyName = getDependencyName(dep);
+          dependencyName = getDependencyName(requirementSpec);
           PythonDependency pythonDependency =
               cachedEnvironmentDeps.get(new StringInsensitive(dependencyName));
           if (pythonDependency != null) {
@@ -212,8 +211,7 @@ public abstract class PythonControllerBase {
         }
       }
       List<String> path = new ArrayList<>();
-      String selectedDepName = getDependencyName(dep.toLowerCase());
-      boolean hasMarker = dep.contains(";");
+      String selectedDepName = getDependencyName(requirementSpec.toLowerCase());
       if (hasMarker && cachedEnvironmentDeps.get(new StringInsensitive(selectedDepName)) == null) {
         continue;
       }
@@ -380,15 +378,17 @@ public abstract class PythonControllerBase {
   }
 
   public static String getDependencyName(String dep) {
-    int rightTriangleBracket = dep.indexOf(">");
-    int leftTriangleBracket = dep.indexOf("<");
-    int equalsSign = dep.indexOf("=");
+    int markerSeparator = dep.indexOf(";");
+    String requirement = markerSeparator == -1 ? dep : dep.substring(0, markerSeparator);
+    int rightTriangleBracket = requirement.indexOf(">");
+    int leftTriangleBracket = requirement.indexOf("<");
+    int equalsSign = requirement.indexOf("=");
     int minimumIndex = getFirstSign(rightTriangleBracket, leftTriangleBracket, equalsSign);
     String depName;
     if (rightTriangleBracket == -1 && leftTriangleBracket == -1 && equalsSign == -1) {
-      depName = dep;
+      depName = requirement;
     } else {
-      depName = dep.substring(0, minimumIndex);
+      depName = requirement.substring(0, minimumIndex);
     }
     return depName.trim();
   }

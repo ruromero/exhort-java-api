@@ -249,6 +249,45 @@ class Python_Provider_Test extends ExhortTest {
     assertThat(dropIgnored(new String(content.buffer))).isEqualTo(dropIgnored(expectedSbom));
   }
 
+  /**
+   * Verifies that marker-only packages (no version operator) that ARE installed appear in the SBOM.
+   */
+  @Test
+  @RestoreSystemProperties
+  void test_marker_only_installed_packages_are_included_in_component_analysis() throws IOException {
+    // Given a requirements.txt with a marker-only dep that IS installed
+    var testFolder = "pip_requirements_txt_marker_installed";
+    var targetRequirements =
+        String.format("src/test/resources/tst_manifests/pip/%s/requirements.txt", testFolder);
+
+    String expectedSbom;
+    try (var is =
+        getResourceAsStreamDecision(
+            this.getClass(),
+            String.format("tst_manifests/pip/%s/expected_component_sbom.json", testFolder))) {
+      expectedSbom = new String(is.readAllBytes());
+    }
+
+    // When pip freeze and pip show include colorama (the marker-only package)
+    String pipFreezeContent = "six==1.16.0\ncolorama==0.4.6\n";
+    String pipShowContent =
+        "Name: six\nVersion: 1.16.0\nSummary: Python 2 and 3 compatibility utilities\nRequires:"
+            + " \nRequired-by: \n---\nName: colorama\nVersion: 0.4.6\nSummary: Cross-platform"
+            + " colored terminal text\nRequires: \nRequired-by: ";
+    System.setProperty(
+        PROP_TRUSTIFY_DA_PIP_FREEZE,
+        new String(Base64.getEncoder().encode(pipFreezeContent.getBytes())));
+    System.setProperty(
+        PROP_TRUSTIFY_DA_PIP_SHOW,
+        new String(Base64.getEncoder().encode(pipShowContent.getBytes())));
+
+    var content = new PythonPipProvider(Path.of(targetRequirements)).provideComponent();
+
+    // Then SBOM contains both six and colorama
+    assertThat(content.type).isEqualTo(Api.CYCLONEDX_MEDIA_TYPE);
+    assertThat(dropIgnored(new String(content.buffer))).isEqualTo(dropIgnored(expectedSbom));
+  }
+
   @Test
   void Test_The_ProvideComponent_Path_Should_Throw_Exception() {
     assertThatIllegalArgumentException()
