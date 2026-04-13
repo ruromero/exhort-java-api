@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junitpioneer.jupiter.RestoreSystemProperties;
 import org.junitpioneer.jupiter.SetSystemProperty;
@@ -211,52 +212,31 @@ class Python_Provider_Test extends ExhortTest {
     assertThat(dropIgnored(new String(content.buffer))).isEqualTo(dropIgnored(expectedSbom));
   }
 
-  @Test
-  @RestoreSystemProperties
-  void test_marker_constrained_uninstalled_packages_are_skipped_in_component_analysis()
-      throws IOException {
-    var testFolder = "pip_requirements_txt_marker_skip";
-    var targetRequirements =
-        String.format("src/test/resources/tst_manifests/pip/%s/requirements.txt", testFolder);
-
-    // load expected SBOM
-    String expectedSbom;
-    try (var is =
-        getResourceAsStreamDecision(
-            this.getClass(),
-            String.format("tst_manifests/pip/%s/expected_component_sbom.json", testFolder))) {
-      expectedSbom = new String(is.readAllBytes());
-    }
-
-    // pip environment where only six and certifi are installed (pywin32 is Windows-only)
-    String pipFreezeContent = "six==1.16.0\ncertifi==2023.7.22\n";
-    String pipShowContent =
-        "Name: certifi\nVersion: 2023.7.22\nSummary: Python package for providing Mozilla's CA"
-            + " Bundle.\nRequires: \nRequired-by: \n---\nName: six\nVersion: 1.16.0\nSummary:"
-            + " Python 2 and 3 compatibility utilities\nRequires: \nRequired-by: ";
-    System.setProperty(
-        PROP_TRUSTIFY_DA_PIP_FREEZE,
-        new String(Base64.getEncoder().encode(pipFreezeContent.getBytes())));
-    System.setProperty(
-        PROP_TRUSTIFY_DA_PIP_SHOW,
-        new String(Base64.getEncoder().encode(pipShowContent.getBytes())));
-
-    // when providing component content for a manifest with a Windows-only marker package
-    var content = new PythonPipProvider(Path.of(targetRequirements)).provideComponent();
-
-    // then SBOM contains six and certifi but not pywin32
-    assertThat(content.type).isEqualTo(Api.CYCLONEDX_MEDIA_TYPE);
-    assertThat(dropIgnored(new String(content.buffer))).isEqualTo(dropIgnored(expectedSbom));
+  static Stream<Arguments> markerTestCases() {
+    return Stream.of(
+        Arguments.of(
+            "pip_requirements_txt_marker_skip",
+            "six==1.16.0\ncertifi==2023.7.22\n",
+            "Name: certifi\nVersion: 2023.7.22\nSummary: Python package for providing Mozilla's CA"
+                + " Bundle.\nRequires: \nRequired-by: \n---\nName: six\nVersion: 1.16.0\nSummary:"
+                + " Python 2 and 3 compatibility utilities\nRequires: \nRequired-by: "),
+        Arguments.of(
+            "pip_requirements_txt_marker_installed",
+            "six==1.16.0\ncolorama==0.4.6\n",
+            "Name: six\nVersion: 1.16.0\nSummary: Python 2 and 3 compatibility utilities\nRequires:"
+                + " \nRequired-by: \n---\nName: colorama\nVersion: 0.4.6\nSummary: Cross-platform"
+                + " colored terminal text\nRequires: \nRequired-by: "));
   }
 
   /**
-   * Verifies that marker-only packages (no version operator) that ARE installed appear in the SBOM.
+   * Verifies that PEP 508 marker-constrained packages are handled correctly: skipped when not
+   * installed (marker didn't match) and included when installed (marker matched or marker-only).
    */
-  @Test
+  @ParameterizedTest
+  @MethodSource("markerTestCases")
   @RestoreSystemProperties
-  void test_marker_only_installed_packages_are_included_in_component_analysis() throws IOException {
-    // Given a requirements.txt with a marker-only dep that IS installed
-    var testFolder = "pip_requirements_txt_marker_installed";
+  void test_marker_constrained_packages_in_component_analysis(
+      String testFolder, String pipFreezeContent, String pipShowContent) throws IOException {
     var targetRequirements =
         String.format("src/test/resources/tst_manifests/pip/%s/requirements.txt", testFolder);
 
@@ -268,12 +248,6 @@ class Python_Provider_Test extends ExhortTest {
       expectedSbom = new String(is.readAllBytes());
     }
 
-    // When pip freeze and pip show include colorama (the marker-only package)
-    String pipFreezeContent = "six==1.16.0\ncolorama==0.4.6\n";
-    String pipShowContent =
-        "Name: six\nVersion: 1.16.0\nSummary: Python 2 and 3 compatibility utilities\nRequires:"
-            + " \nRequired-by: \n---\nName: colorama\nVersion: 0.4.6\nSummary: Cross-platform"
-            + " colored terminal text\nRequires: \nRequired-by: ";
     System.setProperty(
         PROP_TRUSTIFY_DA_PIP_FREEZE,
         new String(Base64.getEncoder().encode(pipFreezeContent.getBytes())));
@@ -283,7 +257,6 @@ class Python_Provider_Test extends ExhortTest {
 
     var content = new PythonPipProvider(Path.of(targetRequirements)).provideComponent();
 
-    // Then SBOM contains both six and colorama
     assertThat(content.type).isEqualTo(Api.CYCLONEDX_MEDIA_TYPE);
     assertThat(dropIgnored(new String(content.buffer))).isEqualTo(dropIgnored(expectedSbom));
   }
