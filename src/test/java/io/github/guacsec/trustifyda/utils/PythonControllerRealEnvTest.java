@@ -288,6 +288,19 @@ class PythonControllerRealEnvTest extends ExhortTest {
     assertEquals("something", PythonControllerRealEnv.getDependencyName("something>=2.0.5"));
   }
 
+  /** Verifies getDependencyName strips PEP 508 marker suffix from requirements. */
+  @Test
+  void get_Dependency_Name_with_markers() {
+    assertEquals(
+        "colorama",
+        PythonControllerRealEnv.getDependencyName("colorama ; sys_platform == \"win32\""));
+    assertEquals(
+        "colorama", PythonControllerRealEnv.getDependencyName("colorama;sys_platform==\"win32\""));
+    assertEquals(
+        "certifi",
+        PythonControllerRealEnv.getDependencyName("certifi==2023.7.22 ; python_version >= \"3\""));
+  }
+
   @Test
   void automaticallyInstallPackageOnEnvironment() {
     assertFalse(pythonControllerRealEnv.automaticallyInstallPackageOnEnvironment());

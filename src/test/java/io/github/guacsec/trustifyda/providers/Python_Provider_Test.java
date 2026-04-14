@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junitpioneer.jupiter.RestoreSystemProperties;
 import org.junitpioneer.jupiter.SetSystemProperty;
@@ -207,6 +208,55 @@ class Python_Provider_Test extends ExhortTest {
     // when providing component content for our pom
     var content = new PythonPipProvider(Path.of(targetRequirements)).provideComponent();
     // verify expected SBOM is returned
+    assertThat(content.type).isEqualTo(Api.CYCLONEDX_MEDIA_TYPE);
+    assertThat(dropIgnored(new String(content.buffer))).isEqualTo(dropIgnored(expectedSbom));
+  }
+
+  static Stream<Arguments> markerTestCases() {
+    return Stream.of(
+        Arguments.of(
+            "pip_requirements_txt_marker_skip",
+            "six==1.16.0\ncertifi==2023.7.22\n",
+            "Name: certifi\nVersion: 2023.7.22\nSummary: Python package for providing Mozilla's CA"
+                + " Bundle.\nRequires: \nRequired-by: \n---\nName: six\nVersion: 1.16.0\nSummary:"
+                + " Python 2 and 3 compatibility utilities\nRequires: \nRequired-by: "),
+        Arguments.of(
+            "pip_requirements_txt_marker_installed",
+            "six==1.16.0\ncolorama==0.4.6\n",
+            "Name: six\nVersion: 1.16.0\nSummary: Python 2 and 3 compatibility utilities\nRequires:"
+                + " \nRequired-by: \n---\nName: colorama\nVersion: 0.4.6\nSummary: Cross-platform"
+                + " colored terminal text\nRequires: \nRequired-by: "));
+  }
+
+  /**
+   * Verifies that PEP 508 marker-constrained packages are handled correctly: skipped when not
+   * installed (marker didn't match) and included when installed (marker matched or marker-only).
+   */
+  @ParameterizedTest
+  @MethodSource("markerTestCases")
+  @RestoreSystemProperties
+  void test_marker_constrained_packages_in_component_analysis(
+      String testFolder, String pipFreezeContent, String pipShowContent) throws IOException {
+    var targetRequirements =
+        String.format("src/test/resources/tst_manifests/pip/%s/requirements.txt", testFolder);
+
+    String expectedSbom;
+    try (var is =
+        getResourceAsStreamDecision(
+            this.getClass(),
+            String.format("tst_manifests/pip/%s/expected_component_sbom.json", testFolder))) {
+      expectedSbom = new String(is.readAllBytes());
+    }
+
+    System.setProperty(
+        PROP_TRUSTIFY_DA_PIP_FREEZE,
+        new String(Base64.getEncoder().encode(pipFreezeContent.getBytes())));
+    System.setProperty(
+        PROP_TRUSTIFY_DA_PIP_SHOW,
+        new String(Base64.getEncoder().encode(pipShowContent.getBytes())));
+
+    var content = new PythonPipProvider(Path.of(targetRequirements)).provideComponent();
+
     assertThat(content.type).isEqualTo(Api.CYCLONEDX_MEDIA_TYPE);
     assertThat(dropIgnored(new String(content.buffer))).isEqualTo(dropIgnored(expectedSbom));
   }

@@ -1,0 +1,48 @@
+{
+  "bomFormat" : "CycloneDX",
+  "specVersion" : "1.4",
+  "version" : 1,
+  "metadata" : {
+    "timestamp" : "2025-04-09T12:38:18Z",
+    "component" : {
+      "type" : "application",
+      "bom-ref" : "pkg:pypi/default-pip-root@0.0.0",
+      "name" : "default-pip-root",
+      "version" : "0.0.0",
+      "purl" : "pkg:pypi/default-pip-root@0.0.0"
+    }
+  },
+  "components" : [
+    {
+      "type" : "library",
+      "bom-ref" : "pkg:pypi/six@1.16.0",
+      "name" : "six",
+      "version" : "1.16.0",
+      "purl" : "pkg:pypi/six@1.16.0"
+    },
+    {
+      "type" : "library",
+      "bom-ref" : "pkg:pypi/certifi@2023.7.22",
+      "name" : "certifi",
+      "version" : "2023.7.22",
+      "purl" : "pkg:pypi/certifi@2023.7.22"
+    }
+  ],
+  "dependencies" : [
+    {
+      "ref" : "pkg:pypi/default-pip-root@0.0.0",
+      "dependsOn" : [
+        "pkg:pypi/six@1.16.0",
+        "pkg:pypi/certifi@2023.7.22"
+      ]
+    },
+    {
+      "ref" : "pkg:pypi/six@1.16.0",
+      "dependsOn" : [ ]
+    },
+    {
+      "ref" : "pkg:pypi/certifi@2023.7.22",
+      "dependsOn" : [ ]
+    }
+  ]
+}
