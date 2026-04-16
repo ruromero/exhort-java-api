@@ -14,6 +14,22 @@
   "components": [
     {
       "type": "library",
+      "bom-ref": "pkg:golang/github.com/ugorji/go/codec@v1.1.7",
+      "group": "github.com/ugorji/go",
+      "name": "codec",
+      "version": "v1.1.7",
+      "purl": "pkg:golang/github.com/ugorji/go/codec@v1.1.7"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:golang/github.com/ugorji/go@v1.1.7",
+      "group": "github.com/ugorji",
+      "name": "go",
+      "version": "v1.1.7",
+      "purl": "pkg:golang/github.com/ugorji/go@v1.1.7"
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:golang/github.com/json-iterator/go@v1.1.9",
       "group": "github.com/json-iterator",
       "name": "go",
@@ -59,22 +75,6 @@
       "name": "testify",
       "version": "v1.4.0",
       "purl": "pkg:golang/github.com/stretchr/testify@v1.4.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:golang/github.com/ugorji/go/codec@v1.1.7",
-      "group": "github.com/ugorji/go",
-      "name": "codec",
-      "version": "v1.1.7",
-      "purl": "pkg:golang/github.com/ugorji/go/codec@v1.1.7"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:golang/github.com/ugorji/go@v1.1.7",
-      "group": "github.com/ugorji",
-      "name": "go",
-      "version": "v1.1.7",
-      "purl": "pkg:golang/github.com/ugorji/go@v1.1.7"
     },
     {
       "type": "library",
@@ -238,6 +238,18 @@
       ]
     },
     {
+      "ref": "pkg:golang/github.com/ugorji/go/codec@v1.1.7",
+      "dependsOn": [
+        "pkg:golang/github.com/ugorji/go@v1.1.7"
+      ]
+    },
+    {
+      "ref": "pkg:golang/github.com/ugorji/go@v1.1.7",
+      "dependsOn": [
+        "pkg:golang/github.com/ugorji/go/codec@v1.1.7"
+      ]
+    },
+    {
       "ref": "pkg:golang/github.com/json-iterator/go@v1.1.9",
       "dependsOn": [
         "pkg:golang/github.com/davecgh/go-spew@v1.1.1",
@@ -273,18 +285,6 @@
       ]
     },
     {
-      "ref": "pkg:golang/github.com/ugorji/go/codec@v1.1.7",
-      "dependsOn": [
-        "pkg:golang/github.com/ugorji/go@v1.1.7"
-      ]
-    },
-    {
-      "ref": "pkg:golang/github.com/ugorji/go@v1.1.7",
-      "dependsOn": [
-        "pkg:golang/github.com/ugorji/go/codec@v1.1.7"
-      ]
-    },
-    {
       "ref": "pkg:golang/golang.org/x/net@v0.0.0-20190404232315-eb5bcb51f2a3",
       "dependsOn": [
         "pkg:golang/golang.org/x/crypto@v0.0.0-20200622213623-75b288015ac9",
@@ -294,8 +294,8 @@
     {
       "ref": "pkg:golang/golang.org/x/crypto@v0.0.0-20200622213623-75b288015ac9",
       "dependsOn": [
-        "pkg:golang/golang.org/x/net@v0.0.0-20190404232315-eb5bcb51f2a3",
-        "pkg:golang/golang.org/x/sys@v0.0.0-20200116001909-b77594299b42"
+        "pkg:golang/golang.org/x/sys@v0.0.0-20200116001909-b77594299b42",
+        "pkg:golang/golang.org/x/net@v0.0.0-20190404232315-eb5bcb51f2a3"
       ]
     },
     {
