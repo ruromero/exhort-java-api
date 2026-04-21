@@ -147,7 +147,8 @@ public final class CargoProvider extends Provider {
       }
 
     } catch (IOException | InterruptedException e) {
-      log.severe("Unexpected error during " + analysisType + " analysis: " + e.getMessage());
+      throw new RuntimeException(
+          "Failed during " + analysisType + " analysis: " + e.getMessage(), e);
     }
   }
 
@@ -438,7 +439,10 @@ public final class CargoProvider extends Provider {
         process.destroyForcibly();
         outputFuture.cancel(true);
         errorFuture.cancel(true);
-        throw new InterruptedException("cargo metadata timed out after " + TIMEOUT + " seconds");
+        throw new InterruptedException(
+            "cargo metadata timed out after "
+                + TIMEOUT
+                + " seconds. Adjust with -Dtrustify.cargo.timeout.seconds=N");
       }
 
       try {
