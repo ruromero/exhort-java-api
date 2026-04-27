@@ -94,6 +94,10 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm
 
+      - name: Install uv
+        # Pin setup-uv to a specific version; update as needed when upgrading uv or CI tooling
+        uses: astral-sh/setup-uv@v6.0.0
+
       - name: Compute Maven profiles
         id: compute_profiles
         run: |
