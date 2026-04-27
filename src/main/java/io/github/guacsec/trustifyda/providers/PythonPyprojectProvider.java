@@ -25,6 +25,7 @@ import io.github.guacsec.trustifyda.sbom.Sbom;
 import io.github.guacsec.trustifyda.sbom.SbomFactory;
 import io.github.guacsec.trustifyda.tools.Operations;
 import io.github.guacsec.trustifyda.utils.Environment;
+import io.github.guacsec.trustifyda.utils.PyprojectTomlUtils;
 import io.github.guacsec.trustifyda.utils.PythonControllerBase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -42,10 +43,8 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.tomlj.Toml;
 import org.tomlj.TomlArray;
 import org.tomlj.TomlParseResult;
-import org.tomlj.TomlTable;
 
 /**
  * Provider for Python projects using {@code pyproject.toml} with <a
@@ -133,7 +132,7 @@ public final class PythonPyprojectProvider extends PythonProvider {
     PackageURL packageURL = toPurl(pkg.name, pkg.version);
     sbom.addDependency(source, packageURL, null);
 
-    String key = canonicalize(pkg.name);
+    String key = PyprojectTomlUtils.canonicalize(pkg.name);
     if (!visited.add(key)) {
       return;
     }
@@ -266,7 +265,7 @@ public final class PythonPyprojectProvider extends PythonProvider {
             }
             String name = extractDepName(reqStr);
             if (name != null) {
-              directDepNames.add(canonicalize(name));
+              directDepNames.add(PyprojectTomlUtils.canonicalize(name));
             }
           }
         }
@@ -285,7 +284,7 @@ public final class PythonPyprojectProvider extends PythonProvider {
       if (name == null) {
         continue;
       }
-      String key = canonicalize(name);
+      String key = PyprojectTomlUtils.canonicalize(name);
       graph.put(key, new PipPackage(name, version, new ArrayList<>()));
     }
 
@@ -299,7 +298,7 @@ public final class PythonPyprojectProvider extends PythonProvider {
       if (name == null) {
         continue;
       }
-      String key = canonicalize(name);
+      String key = PyprojectTomlUtils.canonicalize(name);
       PipPackage pipPkg = graph.get(key);
       if (pipPkg == null) {
         continue;
@@ -317,7 +316,7 @@ public final class PythonPyprojectProvider extends PythonProvider {
         if (depName == null) {
           continue;
         }
-        String depKey = canonicalize(depName);
+        String depKey = PyprojectTomlUtils.canonicalize(depName);
         if (graph.containsKey(depKey)) {
           pipPkg.children.add(depKey);
         }
@@ -338,18 +337,9 @@ public final class PythonPyprojectProvider extends PythonProvider {
     return m.find() ? m.group(1) : null;
   }
 
-  static String canonicalize(String name) {
-    return name.toLowerCase().replaceAll("[-_.]+", "-");
-  }
-
   private TomlParseResult getToml() throws IOException {
     if (cachedToml == null) {
-      TomlParseResult parsed = Toml.parse(manifestPath);
-      if (parsed.hasErrors()) {
-        throw new IOException(
-            "Invalid pyproject.toml format: " + parsed.errors().get(0).getMessage());
-      }
-      cachedToml = parsed;
+      cachedToml = PyprojectTomlUtils.parseToml(manifestPath);
     }
     return cachedToml;
   }
@@ -357,9 +347,8 @@ public final class PythonPyprojectProvider extends PythonProvider {
   @Override
   protected String getRootComponentName() {
     try {
-      TomlParseResult toml = getToml();
-      String name = toml.getString("project.name");
-      if (name != null && !name.isBlank()) {
+      String name = PyprojectTomlUtils.getProjectName(getToml());
+      if (name != null) {
         return name;
       }
     } catch (IOException e) {
@@ -371,9 +360,8 @@ public final class PythonPyprojectProvider extends PythonProvider {
   @Override
   protected String getRootComponentVersion() {
     try {
-      TomlParseResult toml = getToml();
-      String version = toml.getString("project.version");
-      if (version != null && !version.isBlank()) {
+      String version = PyprojectTomlUtils.getProjectVersion(getToml());
+      if (version != null) {
         return version;
       }
     } catch (IOException e) {
@@ -385,15 +373,9 @@ public final class PythonPyprojectProvider extends PythonProvider {
   @Override
   public String readLicenseFromManifest() {
     try {
-      TomlParseResult toml = getToml();
-      String license = toml.getString("project.license");
-      if (license != null && !license.isBlank()) {
+      String license = PyprojectTomlUtils.getLicense(getToml());
+      if (license != null) {
         return license;
-      }
-      // PEP 639: license may be in project.license.text
-      String licenseText = toml.getString("project.license.text");
-      if (licenseText != null && !licenseText.isBlank()) {
-        return licenseText;
       }
     } catch (IOException e) {
       log.fine("Failed to parse pyproject.toml for license: " + e.getMessage());
@@ -416,9 +398,7 @@ public final class PythonPyprojectProvider extends PythonProvider {
   }
 
   private void rejectPoetryDependencies() throws IOException {
-    TomlParseResult toml = getToml();
-    TomlTable poetryDeps = toml.getTable("tool.poetry.dependencies");
-    if (poetryDeps != null) {
+    if (PyprojectTomlUtils.hasPoetryDependencies(getToml())) {
       throw new IllegalStateException(
           "Poetry dependencies in pyproject.toml are not supported."
               + " Please use PEP 621 [project.dependencies] format instead.");
@@ -426,18 +406,7 @@ public final class PythonPyprojectProvider extends PythonProvider {
   }
 
   private void collectIgnoredDeps() throws IOException {
-    TomlParseResult toml = getToml();
-    List<String> rawLines = Files.readAllLines(manifestPath);
-    collectedIgnoredDeps = new HashSet<>();
-
-    // [project.dependencies] - PEP 621
-    TomlArray projectDeps = toml.getArray("project.dependencies");
-    if (projectDeps != null) {
-      for (int i = 0; i < projectDeps.size(); i++) {
-        String dep = projectDeps.getString(i);
-        checkIgnored(rawLines, dep, dep);
-      }
-    }
+    collectedIgnoredDeps = PyprojectTomlUtils.collectIgnoredDeps(manifestPath, getToml());
   }
 
   List<String> parseDependencyStrings() throws IOException {
@@ -453,15 +422,6 @@ public final class PythonPyprojectProvider extends PythonProvider {
     }
 
     return deps;
-  }
-
-  private void checkIgnored(List<String> rawLines, String searchToken, String depIdentifier) {
-    for (String line : rawLines) {
-      if (line.contains(searchToken) && containsIgnorePattern(line)) {
-        collectedIgnoredDeps.add(depIdentifier);
-        break;
-      }
-    }
   }
 
   static final class PipPackage {
