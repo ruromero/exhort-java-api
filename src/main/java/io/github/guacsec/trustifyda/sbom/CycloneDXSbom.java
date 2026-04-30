@@ -18,6 +18,9 @@ package io.github.guacsec.trustifyda.sbom;
 
 import static io.github.guacsec.trustifyda.impl.ExhortApi.debugLoggingIsNeeded;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.packageurl.MalformedPackageURLException;
 import com.github.packageurl.PackageURL;
 import io.github.guacsec.trustifyda.logging.LoggersFactory;
@@ -67,8 +70,8 @@ public class CycloneDXSbom implements Sbom {
     Metadata metadata = new Metadata();
     metadata.setTimestamp(new Date());
     bom.setMetadata(metadata);
-    bom.setComponents(new ArrayList<>());
     bom.setDependencies(new ArrayList<>());
+    bom.setComponents(new ArrayList<>());
     belongingCriteriaBinaryAlgorithm = getBelongingConditionByName();
     this.exhortIgnoreMethod = "insensitive";
   }
@@ -230,6 +233,9 @@ public class CycloneDXSbom implements Sbom {
                 d.setDependencies(filteredDeps);
               }
             });
+    if (bom.getComponents().isEmpty()) {
+      bom.setDependencies(new ArrayList<>());
+    }
     return this;
   }
 
@@ -302,12 +308,36 @@ public class CycloneDXSbom implements Sbom {
   public String getAsJsonString() {
     try {
       var jsonString = BomGeneratorFactory.createJson(VERSION, bom).toJsonString();
+      jsonString = ensureComponentsField(jsonString);
       if (debugLoggingIsNeeded()) {
         log.info("Generated Sbom Json:" + System.lineSeparator() + jsonString);
       }
       return jsonString;
     } catch (GeneratorException e) {
-      throw new RuntimeException("Unable to genenerate JSON from SBOM", e);
+      throw new RuntimeException("Unable to generate JSON from SBOM", e);
+    }
+  }
+
+  private String ensureComponentsField(String json) throws GeneratorException {
+    try {
+      var mapper = new ObjectMapper();
+      var rootNode = (ObjectNode) mapper.readTree(json);
+      if (!rootNode.has("components")) {
+        var ordered = mapper.createObjectNode();
+        rootNode
+            .properties()
+            .forEach(
+                field -> {
+                  ordered.set(field.getKey(), field.getValue());
+                  if (field.getKey().equals("metadata")) {
+                    ordered.set("components", mapper.createArrayNode());
+                  }
+                });
+        return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(ordered);
+      }
+      return json;
+    } catch (JsonProcessingException e) {
+      throw new GeneratorException("Unable to ensure components field in JSON", e);
     }
   }
 
